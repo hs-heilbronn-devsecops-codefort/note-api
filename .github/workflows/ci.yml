@@ -1,27 +1,29 @@
-name: CI Pipeline for Pull Requests
+name: CI Pipeline
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     branches:
-      - main  
+      - main
 jobs:
-  test:
+  check:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.12'  
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10.4'
 
-    - name: Install dependencies
-      run: |
-        pip install -r requirements.txt
-        pip install pytest pytest-cov
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
-    - name: Run tests with coverage
-      run: |
-        pytest --cov=note_api --cov-report=term
+      - name: Run tests in parallel with coverage
+        run: |
+          pytest -v --cov=note_api --cov-report=xml --cov-report=html -n auto
