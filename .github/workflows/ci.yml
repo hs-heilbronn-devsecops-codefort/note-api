@@ -1,6 +1,5 @@
 name: CI Pipeline
 
-
 on:
   pull_request:
     branches: [main]
@@ -24,7 +23,7 @@ jobs:
     # Step 2: Set up Python environment
     - name: Set Up Python Environment
       uses: actions/setup-python@v4
-       with:
+      with:
         python-version: '3.12.7' # Using the latest agreed-upon version
 
     # Step 3: Upgrade pip and install dependencies
