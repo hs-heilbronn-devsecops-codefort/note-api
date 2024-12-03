@@ -71,6 +71,7 @@ jobs:
     - name: Authenticate with Google Cloud
       run: |
         echo "${{ secrets.GOOGLE_CREDENTIALS }}" | base64 --decode > /tmp/key.json
+        cat /tmp/key.json # Debugging: Remove in production
         gcloud auth activate-service-account --key-file=/tmp/key.json
         gcloud config set project hs-heilbronn-devsecops
 
