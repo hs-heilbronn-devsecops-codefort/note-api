@@ -26,7 +26,7 @@ jobs:
       with:
         python-version: '3.12.7'
 
-    # Step 3: Upgrade pip and install dependencies
+    # Step 3: Install Python dependencies
     - name: Install Python Dependencies
       run: |
         python -m pip install --upgrade pip
@@ -67,32 +67,26 @@ jobs:
       run: |
         docker push ghcr.io/${{ github.repository }}:latest
 
-    # Step 10: Authenticate with Google Cloud using Service Account Key
+    # Step 10: Authenticate with Google Cloud
     - name: Authenticate with Google Cloud
-      run: |
-        echo "${{ secrets.GOOGLE_CREDENTIALS }}" | base64 --decode > /tmp/key.json
-        cat /tmp/key.json # Debugging: Remove in production
-        gcloud auth activate-service-account --key-file=/tmp/key.json
-        gcloud config set project hs-heilbronn-devsecops
+      uses: google-github-actions/auth@v1
+      with:
+        workload_identity_provider: 'projects/70756149774/locations/global/workloadIdentityPools/github-actions/providers/github-repos'
+        service_account: 'hshn-devsecops-service-account@hs-heilbronn-devsecops.iam.gserviceaccount.com'
+        credentials_json: ${{ secrets.GOOGLE_CLOUD_KEY }} 
 
-    # Step 11: Debug Authentication State
-    - name: Debug Authentication State
-      run: |
-        gcloud auth list
-        gcloud projects list
-        gcloud run services list --region europe-west3
-
-    # Step 12: Deploy application to Google Cloud Run
+    # Step 11: Deploy application to Google Cloud Run
     - id: deploy
       name: Deploy Application to Google Cloud Run
-      run: |
-        gcloud run deploy note-api-${{ github.repository_owner }} \
-          --image ghcr.io/${{ github.repository }}:v1.0 \
-          --region europe-west3 \
-          --platform managed \
-          --allow-unauthenticated \
-          --set-env-vars BACKEND=memory
+      uses: google-github-actions/deploy-cloudrun@v2
+      with:
+        service: note-api-${{ github.repository_owner }}
+        image: ghcr.io/${{ github.repository }}:v1.0
+        region: europe-west3
+        env_vars: BACKEND=memory
 
-    # Step 13: Validate Deployment
+    # Step 12: Validate Deployment
     - name: Validate Cloud Run Deployment
-      run: curl "${{ steps.deploy.outputs.url }}" | grep "Application is running successfully"
+      run: |
+        set -e
+        curl "${{ steps.deploy.outputs.url }}" | grep "Application is running successfully"
