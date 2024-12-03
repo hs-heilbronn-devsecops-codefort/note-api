@@ -70,7 +70,7 @@ jobs:
     # Step 10: Authenticate with Google Cloud using Service Account Key
     - name: Authenticate with Google Cloud
       run: |
-        echo "${{ secrets.GOOGLE_CREDENTIALS }}" > /tmp/key.json
+        echo "${{ secrets.GOOGLE_CREDENTIALS }}" | base64 --decode > /tmp/key.json
         gcloud auth activate-service-account --key-file=/tmp/key.json
         gcloud config set project hs-heilbronn-devsecops
 
