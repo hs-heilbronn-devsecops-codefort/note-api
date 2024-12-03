@@ -1,4 +1,4 @@
-name: Python CI/CD Pipeline with Cloud Run
+name: CI Pipeline
 
 on:
   pull_request:
