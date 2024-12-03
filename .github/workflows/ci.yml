@@ -24,7 +24,7 @@ jobs:
     - name: Set Up Python Environment
       uses: actions/setup-python@v4
       with:
-        python-version: '3.12.7' # Ensures consistent Python version
+        python-version: '3.12.7' #  Using the latest agreed-upon version
 
     # Step 3: Upgrade pip and install dependencies
     - name: Install Python Dependencies
@@ -60,12 +60,12 @@ jobs:
     # Step 8: Build Docker image
     - name: Build Docker Image for Application
       run: |
-        docker build -t ghcr.io/${{ github.repository }}:v1.0 .
+        docker build -t ghcr.io/${{ github.repository }}:latest .
 
     # Step 9: Push Docker image to GitHub Container Registry
     - name: Push Docker Image to Registry
       run: |
-        docker push ghcr.io/${{ github.repository }}:v1.0
+        docker push ghcr.io/${{ github.repository }}:latest
 
     # Step 10: Authenticate with Google Cloud
     - name: Authenticate with Google Cloud
@@ -81,7 +81,7 @@ jobs:
       with:
         service: note-api-${{ github.repository_owner }}
         image: ghcr.io/${{ github.repository }}:v1.0
-        region: europe-west3 # Adjust to your preferred region
+        region: europe-west3
         env_vars: BACKEND=memory
 
     # Step 12: Validate Deployment
