@@ -24,7 +24,7 @@ jobs:
     - name: Set Up Python Environment
       uses: actions/setup-python@v4
       with:
-        python-version: '3.12.7' # Using the latest agreed-upon version
+        python-version: '3.12.7'
 
     # Step 3: Upgrade pip and install dependencies
     - name: Install Python Dependencies
@@ -56,7 +56,8 @@ jobs:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.TOKEN }}
-   # Step 8: Build Docker image
+
+    # Step 8: Build Docker image
     - name: Build Docker Image for Application
       run: |
         docker build -t ghcr.io/${{ github.repository }}:latest .
@@ -65,38 +66,32 @@ jobs:
     - name: Push Docker Image to Registry
       run: |
         docker push ghcr.io/${{ github.repository }}:latest
-    - name: Authenticate with Google Cloud
-      uses: google-github-actions/auth@v1
-      with:
-        workload_identity_provider: 'projects/70756149774/locations/global/workloadIdentityPools/github-actions/providers/github-repos'
-        service_account: 'hshn-devsecops-service-account@hs-heilbronn-devsecops.iam.gserviceaccount.com'
-        service_account_email: hshn-devsecops-service-account@hs-heilbronn-devsecops.iam.gserviceaccount.com
 
-    # Step 9.1: Debug Authentication State
+    # Step 10: Authenticate with Google Cloud using Service Account Key
+    - name: Authenticate with Google Cloud
+      run: |
+        echo "${{ secrets.GOOGLE_CREDENTIALS }}" > /tmp/key.json
+        gcloud auth activate-service-account --key-file=/tmp/key.json
+        gcloud config set project hs-heilbronn-devsecops
+
+    # Step 11: Debug Authentication State
     - name: Debug Authentication State
       run: |
         gcloud auth list
         gcloud projects list
         gcloud run services list --region europe-west3
 
-    # Step 9.2: Refresh Authentication Token
-    - name: Refresh Authentication Token
-      run: |
-        gcloud auth list
-        gcloud auth application-default login
-        gcloud auth activate-service-account hshn-devsecops-service-account@hs-heilbronn-devsecops.iam.gserviceaccount.com --key-file=${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
-
-    # Step 11: Deploy application to Google Cloud Run
+    # Step 12: Deploy application to Google Cloud Run
     - id: deploy
       name: Deploy Application to Google Cloud Run
-      uses: google-github-actions/deploy-cloudrun@v2
-      with:
-        service: note-api-${{ github.repository_owner }}
-        image: ghcr.io/${{ github.repository }}:v1.0
-        region: europe-west3
-        env_vars: BACKEND=memory
+      run: |
+        gcloud run deploy note-api-${{ github.repository_owner }} \
+          --image ghcr.io/${{ github.repository }}:v1.0 \
+          --region europe-west3 \
+          --platform managed \
+          --allow-unauthenticated \
+          --set-env-vars BACKEND=memory
 
-    # Step 12: Validate Deployment
+    # Step 13: Validate Deployment
     - name: Validate Cloud Run Deployment
       run: curl "${{ steps.deploy.outputs.url }}" | grep "Application is running successfully"
-
