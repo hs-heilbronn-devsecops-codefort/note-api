@@ -26,7 +26,7 @@ jobs:
       with:
         python-version: '3.12.7'
 
-    # Step 3: Install Python dependencies
+    # Step 3: Upgrade pip and install dependencies
     - name: Install Python Dependencies
       run: |
         python -m pip install --upgrade pip
@@ -75,18 +75,24 @@ jobs:
         service_account: 'hshn-devsecops-service-account@hs-heilbronn-devsecops.iam.gserviceaccount.com'
         credentials_json: ${{ secrets.GOOGLE_CLOUD_KEY }} 
 
-    # Step 11: Deploy application to Google Cloud Run
+    # Step 11: Debug Authentication (Optional, for troubleshooting)
+    - name: Debug Authentication
+      run: |
+        echo "Checking Authentication..."
+        gcloud auth list
+        gcloud projects list
+        gcloud run services list --region europe-west3
+
+    # Step 12: Deploy application to Google Cloud Run
     - id: deploy
       name: Deploy Application to Google Cloud Run
       uses: google-github-actions/deploy-cloudrun@v2
       with:
         service: note-api-${{ github.repository_owner }}
-        image: ghcr.io/${{ github.repository }}:v1.0
+        image: ghcr.io/${{ github.repository }}:latest
         region: europe-west3
         env_vars: BACKEND=memory
 
-    # Step 12: Validate Deployment
+    # Step 13: Validate Deployment
     - name: Validate Cloud Run Deployment
-      run: |
-        set -e
-        curl "${{ steps.deploy.outputs.url }}" | grep "Application is running successfully"
+      run: curl "${{ steps.deploy.outputs.url }}" | grep "Application is running successfully"
