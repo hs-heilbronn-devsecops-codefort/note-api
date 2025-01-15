@@ -42,7 +42,7 @@ jobs:
     - name: Deploy to Google Cloud Run
       uses: google-github-actions/deploy-cloudrun@v2
       with:
-        service: 'note-api-hs-heilbronn-devsecops-teamp123'
+        service: 'hs-heilbronn-devsecops-codefort'
         image: 'europe-west3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/note-api/note-api:${{ github.sha }}'
         region: 'europe-west3'
         env_vars: |
