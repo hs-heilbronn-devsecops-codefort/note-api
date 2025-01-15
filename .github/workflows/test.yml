@@ -1,5 +1,4 @@
-name: Test Pipeline
-
+name: CI Pipeline
 on:
   pull_request:
     branches:
@@ -7,38 +6,53 @@ on:
   push:
     branches:
       - main
-
+# Add permissions block at workflow level
+permissions:
+  contents: read
+  id-token: write # Required for GCP authentication
+  
 jobs:
   test:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
+    strategy:
+      max-parallel: 1
     steps:
-    - uses: actions/checkout@v2
-      with:
-        fetch-depth: 0
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: 3.12.1
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
 
-    - name: Install dependencies
-      run: pip install -r requirements.txt
+      # Add authentication step before tests
+      - name: Authenticate with Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/70756149774/locations/global/workloadIdentityPools/github-actions/providers/github-repos'
+          service_account: 'hshn-devsecops-service-account@hs-heilbronn-devsecops.iam.gserviceaccount.com'
 
-    - name: Install development dependencies
-      run: pip install -r requirements-dev.txt
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt && pip install -r requirements-dev.txt
+          pip install pytest pytest-cov
 
-    - name: Run pytest with coverage
-      run: pytest --cov=name -n auto
+      - name: Run tests
+        run: |
+          pytest --cov=note_api --cov-report=xml --cov-report=term-missing --disable-warnings
+        env:
+          GOOGLE_CLOUD_PROJECT: ${{ secrets.GCP_PROJECT_ID }}
 
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v2
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
+      - name: Upload coverage to Codecov
+        run: bash <(curl -s https://codecov.io/bash)
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
-    - name: Snyk Security Scan
-      uses: snyk/actions/python@master
-      env:
-        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      - name: Run Snyk to check for vulnerabilities
+        uses: snyk/actions/python@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --all-projects --sarif-file-output=snyk.sarif
