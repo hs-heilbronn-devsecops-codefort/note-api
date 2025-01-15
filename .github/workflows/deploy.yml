@@ -23,15 +23,34 @@ jobs:
         workload_identity_provider: 'projects/70756149774/locations/global/workloadIdentityPools/github-actions/providers/github-repos'
         service_account: 'hshn-devsecops-service-account@hs-heilbronn-devsecops.iam.gserviceaccount.com'
 
-    - id: deploy
+    - name: Authenticate Docker with Google Artifact Registry
+      run: |
+        gcloud auth configure-docker europe-west3-docker.pkg.dev
+    
+    - name: Copy Image to Google Artifact Registry
+      run: |
+        GHCR_IMAGE=ghcr.io/${{ github.repository_owner }}/note-api:${{ github.sha }}
+        GOOGLE_IMAGE=europe-west3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/note-api/note-api:${{ github.sha }}
+        
+        echo "Pulling image from GHCR..."          
+        docker pull $GHCR_IMAGE
+        echo "Tagging image for GAR..."          
+        docker tag $GHCR_IMAGE $GOOGLE_IMAGE
+        echo "Pushing image to Google Artifact Registry..."
+        docker push $GOOGLE_IMAGE
+    
+    - name: Deploy to Google Cloud Run
       uses: google-github-actions/deploy-cloudrun@v2
       with:
-        service: note-api-${{ github.repository_owner }}
-        source: "."
-        region: europe-west3
-        env_vars: BACKEND=memory
-
-    - name: Use output
-      run: curl "${{ steps.deploy.outputs.url }}"
-
-
+        service: 'note-api-hs-heilbronn-devsecops-teamp123'
+        image: 'europe-west3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/note-api/note-api:${{ github.sha }}'
+        region: 'europe-west3'
+        env_vars: |
+          BACKEND=memory
+          OTEL_EXPORTER_OTLP_ENDPOINT=https://cloudtrace.googleapis.com
+          OTEL_PYTHON_LOG_CORRELATION=true
+          OTEL_SERVICE_NAME=notes-api
+          OTEL_TRACES_SAMPLER=always_on
+          OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+          OTEL_TRACES_EXPORTER=otlp
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
