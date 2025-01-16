@@ -39,11 +39,13 @@ jobs:
         IMAGE=gcr.io/${{ secrets.GCP_PROJECT_ID }}/note-api:${{ github.sha }}
         docker build --platform linux/amd64 -t $IMAGE .
 
+    - name: Push Docker image
+      run: docker push ghcr.io/${{ github.repository }}:${{ github.sha }}
+
     - id: deploy
       uses: google-github-actions/deploy-cloudrun@v2
       with:
         service: note-api-${{ github.repository_owner }}
-        image: gcr.io/${{ secrets.GCP_PROJECT_ID }}/note-api:${{ github.sha }}
         source: "."
         region: europe-west3
         env_vars: BACKEND=memory
