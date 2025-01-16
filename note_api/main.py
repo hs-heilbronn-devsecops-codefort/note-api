@@ -98,6 +98,3 @@ def create_note(request: CreateNoteRequest,
     note_id = str(uuid4())
     backend.set(note_id, request)
     return note_id
-
-# Instrument the FastAPI application
-FastAPIInstrumentor.instrument_app(app)
