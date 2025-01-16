@@ -44,7 +44,7 @@ jobs:
         IMAGE=gcr.io/${{ secrets.GCP_PROJECT_ID }}/note-api:${{ github.sha }}
         docker push $IMAGE
 
-    - id: deploy
+    - name: Deploy to Cloud Run
       uses: google-github-actions/deploy-cloudrun@v2
       with:
         service: note-api-${{ github.repository_owner }}
