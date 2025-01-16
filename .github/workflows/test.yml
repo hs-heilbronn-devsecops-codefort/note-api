@@ -1,58 +1,48 @@
-name: CI Pipeline
+name: Deploy Pipeline
 on:
-  pull_request:
-    branches:
-      - main
   push:
     branches:
       - main
-# Add permissions block at workflow level
-permissions:
-  contents: read
-  id-token: write # Required for GCP authentication
-  
+
 jobs:
-  test:
+  deploy:
     runs-on: ubuntu-latest
-    strategy:
-      max-parallel: 1
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+    # Step 1: Checkout code
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: "pip"
+    - name: Authenticate with Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        workload_identity_provider: 'projects/70756149774/locations/global/workloadIdentityPools/github-actions/providers/github-repos'
+        service_account: 'hshn-devsecops-service-account@hs-heilbronn-devsecops.iam.gserviceaccount.com'
+    
+    - name: Log in to GitHub Container Registry
+    uses: docker/login-action@v2
+    with:
+      registry: ghcr.io
+      username: ${{ github.actor }}
+      password: ${{ secrets.TOKEN }}
 
-      # Add authentication step before tests
-      - name: Authenticate with Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: 'projects/70756149774/locations/global/workloadIdentityPools/github-actions/providers/github-repos'
-          service_account: 'hshn-devsecops-service-account@hs-heilbronn-devsecops.iam.gserviceaccount.com'
+    - name: Configure gcloud
+      run: |
+        gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
+        gcloud auth configure-docker gcr.io
 
-      - name: Install dependencies
-        run: |
-          pip install -r requirements.txt && pip install -r requirements-dev.txt
-          pip install pytest pytest-cov
+    - name: Build Docker image
+      run: |
+        IMAGE=gcr.io/${{ secrets.GCP_PROJECT_ID }}/note-api:${{ github.sha }}
+        docker build --platform linux/amd64 -t $IMAGE .
 
-      - name: Run tests
-        run: |
-          pytest --cov=note_api --cov-report=xml --cov-report=term-missing --disable-warnings
-        env:
-          GOOGLE_CLOUD_PROJECT: ${{ secrets.GCP_PROJECT_ID }}
-
-      - name: Upload coverage to Codecov
-        run: bash <(curl -s https://codecov.io/bash)
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-
-      - name: Run Snyk to check for vulnerabilities
-        uses: snyk/actions/python@master
-        continue-on-error: true
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          args: --all-projects --sarif-file-output=snyk.sarif
+    - name: Deploy to Cloud Run
+      uses: google-github-actions/deploy-cloudrun@v2
+      with:
+        service: note-api-hs-heilbronn-devsecops-codefort
+        image: gcr.io/${{ secrets.GCP_PROJECT_ID }}/note-api:${{ github.sha }}
+        region: us-west3
+        env_vars: BACKEND=memory
