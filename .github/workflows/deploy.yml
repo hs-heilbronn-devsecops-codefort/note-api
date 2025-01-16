@@ -40,7 +40,9 @@ jobs:
         docker build --platform linux/amd64 -t $IMAGE .
 
     - name: Push Docker image
-      run: docker push ghcr.io/${{ github.repository }}:${{ github.sha }}
+      run: |
+        IMAGE=gcr.io/${{ secrets.GCP_PROJECT_ID }}/note-api:${{ github.sha }}
+        docker push $IMAGE
 
     - id: deploy
       uses: google-github-actions/deploy-cloudrun@v2
