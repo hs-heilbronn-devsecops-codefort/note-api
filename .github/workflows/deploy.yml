@@ -29,7 +29,8 @@ jobs:
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
-        password: ${{ secrets.GHCR_PAT }}
+        password: ${{ secrets.TOKEN }}
+
 
     - name: Authenticate Docker with Google Artifact Registry
       run: |
