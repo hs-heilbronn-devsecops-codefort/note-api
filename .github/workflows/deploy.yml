@@ -39,10 +39,14 @@ jobs:
         IMAGE=gcr.io/${{ secrets.GCP_PROJECT_ID }}/note-api:${{ github.sha }}
         docker build --platform linux/amd64 -t $IMAGE .
 
-    - name: Deploy to Cloud Run
+    - id: deploy
       uses: google-github-actions/deploy-cloudrun@v2
       with:
-        service: note-api-hs-heilbronn-devsecops-codefort
+        service: note-api-${{ github.repository_owner }}
         image: gcr.io/${{ secrets.GCP_PROJECT_ID }}/note-api:${{ github.sha }}
-        region: us-west3
+        source: "."
+        region: europe-west3
         env_vars: BACKEND=memory
+
+    - name: Use output
+      run: curl "${{ steps.deploy.outputs.url }}"
