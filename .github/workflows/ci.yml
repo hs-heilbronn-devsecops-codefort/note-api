@@ -1,98 +1,91 @@
-name: CI Pipeline
+name: CI pipeline
 
 on:
-  pull_request:
-    branches: [main]
-  push:
-    branches: [main]
+  workflow_run:
+    workflows:
+      - CI Pipeline  # Triggers after ci.yaml completes
+    types:
+      - completed
+
+permissions:
+  id-token: write
+  contents: read
+  packages: write
 
 jobs:
-  deploy-cloud-run:
+  build_push:
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
 
     steps:
-    # Step 1: Checkout code
-    - name: Checkout Repository Code
-      uses: actions/checkout@v3
-      with:
-        fetch-depth: 0
+      # Step 1: Checkout the code
+      - name: Checkout Repository Code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
-    # Step 2: Set up Python environment
-    - name: Set Up Python Environment
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.12.7'
+      # Step 2: Set up Python environment
+      - name: Set Up Python Environment
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12.7'
 
-    # Step 3: Upgrade pip and install dependencies
-    - name: Install Python Dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install -r requirements-dev.txt
+      # Step 3: Upgrade pip and install dependencies
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
-    # Step 4: Run tests and collect coverage
-    - name: Run Unit Tests and Generate Coverage Report
-      run: pytest --cov=src --cov-report=term-missing -n auto
+      # Step 4: Run tests and collect coverage
+      - name: Run Unit Tests and Generate Coverage Report
+        run: pytest --cov=src --cov-report=term-missing -n auto
 
-    # Step 5: Upload coverage report to Codecov
-    - name: Upload Coverage Report to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
+      # Step 5: Upload coverage report to Codecov
+      - name: Upload Coverage Report to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
 
-    # Step 6: Perform Snyk security scan
-    - name: Run Snyk Security Scan
-      uses: snyk/actions/python@master
-      env:
-        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      # Step 6: Perform Snyk security scan
+      - name: Run Snyk Security Scan
+        uses: snyk/actions/python@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
-    # Step 7: Log in to GitHub Container Registry
-    - name: Log In to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.TOKEN }}
+      # Step 7: Authenticate with Google Cloud
+      - name: Authenticate with Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/70756149774/locations/global/workloadIdentityPools/github-actions/providers/github-repos'
+          service_account: 'hshn-devsecops-service-account@hs-heilbronn-devsecops.iam.gserviceaccount.com'
+          credentials_json: ${{ secrets.GOOGLE_CLOUD_KEY }}
 
-    # Step 8: Build Docker image
-    - name: Build Docker Image for Application
-      run: |
-        docker build -t ghcr.io/${{ github.repository }}:latest .
+      # Step 8: Authenticate Docker with Google Artifact Registry
+      - name: Authenticate Docker with Google Artifact Registry
+        run: |
+          gcloud auth configure-docker europe-west3-docker.pkg.dev
 
-    # Step 9: Push Docker image to GitHub Container Registry
-    - name: Push Docker Image to Registry
-      run: |
-        docker push ghcr.io/${{ github.repository }}:latest
+      # Step 9: Build Docker image
+      - name: Build Docker Image
+        run: |
+          docker build -t europe-west3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/note-api/note-api:${{ github.sha }} .
 
-    # Step 10: Authenticate with Google Cloud
-    - name: Authenticate with Google Cloud
-      uses: google-github-actions/auth@v1
-      with:
-        workload_identity_provider: 'projects/70756149774/locations/global/workloadIdentityPools/github-actions/providers/github-repos'
-        service_account: 'hshn-devsecops-service-account@hs-heilbronn-devsecops.iam.gserviceaccount.com'
-        credentials_json: ${{ secrets.GOOGLE_CLOUD_KEY }} 
+      # Step 10: Push Docker image to Google Artifact Registry
+      - name: Push Docker Image to Google Artifact Registry
+        run: |
+          docker push europe-west3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/note-api/note-api:${{ github.sha }}
 
-    # Step 11: Debug Authentication (Optional, for troubleshooting)
-    - name: Debug Authentication
-      run: |
-        echo "Checking Authentication..."
-        gcloud auth list
-        gcloud projects list
-        gcloud run services list --region europe-west3
+      # Step 11: Deploy to Google Cloud Run
+      - name: Deploy to Google Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: 'note-api-hs-heilbronn-devsecops-teamp123'
+          image: 'europe-west3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/note-api/note-api:${{ github.sha }}'
+          region: 'europe-west3'
+          env_vars: BACKEND=memory
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-    # Step 12: Deploy application to Google Cloud Run
-    - id: deploy
-      name: Deploy Application to Google Cloud Run
-      uses: google-github-actions/deploy-cloudrun@v2
-      with:
-        service: note-api-${{ github.repository_owner }}
-        image: ghcr.io/${{ github.repository }}:latest
-        region: europe-west3
-        env_vars: BACKEND=memory
-
-    # Step 13: Validate Deployment
-    - name: Validate Cloud Run Deployment
-      run: curl "${{ steps.deploy.outputs.url }}" | grep "Application is running successfully"
+      # Step 12: Validate Deployment
+      - name: Validate Cloud Run Deployment
+        run: |
+          curl "$(gcloud run services describe note-api-hs-heilbronn-devsecops-teamp123 --region europe-west3 --format 'value(status.url)')" | grep "Application is running successfully"
