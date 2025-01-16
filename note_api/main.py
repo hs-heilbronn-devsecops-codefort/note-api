@@ -91,16 +91,6 @@ def update_note(note_id: str,
                 request: CreateNoteRequest,
                 backend: Annotated[Backend, Depends(get_backend)]) -> None:
     backend.set(note_id, request)
-    
-@app.post('/notes')
-def create_note(request: CreateNoteRequest,
-                backend: Annotated[Backend, Depends(get_backend)]) -> str:
-    with tracer.start_as_current_span("create_note") as span:
-        note_id = str(uuid4())
-        span.set_attribute("note_id", note_id)
-        span.set_attribute("title", request.title)
-        backend.set(note_id, request)
-        return note_id
 
 @app.post('/notes')
 def create_note(request: CreateNoteRequest,
