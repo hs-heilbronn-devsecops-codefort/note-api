@@ -5,6 +5,7 @@ redis
 uvicorn[standard]
 pytest-xdist
 pytest-xdist[psutil]
+fakeredis
 opentelemetry-api
 opentelemetry-sdk
 opentelemetry-instrumentation-fastapi
